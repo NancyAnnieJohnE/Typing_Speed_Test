@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Typing Speed Test</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: rgb(230, 56, 56); /* solid red background */
+      color: white;
+      margin: 0;
+      padding: 20px;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 2.2em;
+      margin-bottom: 20px;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    .paragraph {
+      background: rgba(255,255,255,0.1);
+      padding: 15px;
+      border-radius: 8px;
+      text-align: justify;
+      line-height: 1.6em;
+      font-size: 18px;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 140px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      padding: 10px;
+      font-size: 16px;
+      resize: vertical;
+      background: white;
+      color: black;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+
+    select, button {
+      padding: 10px 18px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+
+    button { color: white; }
+    #startBtn { background: #3498db; }
+    #finishBtn { background: #2ecc71; }
+    #changeBtn { background: #e67e22; }
+    #nextBtn { background: #9b59b6; display: none; }
+
+    #result {
+      font-size: 18px;
+      font-weight: bold;
+      margin-top: 15px;
+      color: white;
+    }
+
+    #timer {
+      font-size: 20px;
+      font-weight: bold;
+      color: yellow;
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>⌨️ Typing Speed Test</h1>
+
+  <div class="container">
+    <div id="paragraphBox" class="paragraph">Loading paragraph...</div>
+
+    <div class="controls">
+      <label for="timeSelect">⏱ Time Limit:</label>
+      <select id="timeSelect">
+        <option value="30">30 seconds</option>
+        <option value="60">60 seconds</option>
+        <option value="120">120 seconds</option>
+      </select>
+
+      <button id="changeBtn">🔄 Change Paragraph</button>
+    </div>
+
+    <div id="timer">Time: 0s</div>
+
+    <textarea id="typingBox" placeholder="Type the paragraph above..." disabled></textarea>
+
+    <div class="controls">
+      <button id="startBtn">Start Test</button>
+      <button id="finishBtn" disabled>Finish Test</button>
+      <button id="nextBtn">➡️ Next Paragraph</button>
+    </div>
+
+    <div id="result"></div>
+  </div>
+
+  <script>
+    const startBtn = document.getElementById("startBtn");
+    const finishBtn = document.getElementById("finishBtn");
+    const changeBtn = document.getElementById("changeBtn");
+    const nextBtn = document.getElementById("nextBtn");
+    const typingBox = document.getElementById("typingBox");
+    const resultDiv = document.getElementById("result");
+    const paragraphBox = document.getElementById("paragraphBox");
+    const timerDiv = document.getElementById("timer");
+    const timeSelect = document.getElementById("timeSelect");
+
+    let countdown;
+    let timeLimit = parseInt(timeSelect.value);
+    let timeLeft = timeLimit;
+
+    async function loadParagraph() {
+      const res = await fetch("/paragraph");
+      const data = await res.json();
+      paragraphBox.innerText = data.paragraph;
+    }
+
+    function startTimer() {
+      timeLimit = parseInt(timeSelect.value);
+      timeLeft = timeLimit;
+      timerDiv.innerText = `⏳ Time: ${timeLeft}s`;
+
+      countdown = setInterval(() => {
+        timeLeft--;
+        timerDiv.innerText = `⏳ Time: ${timeLeft}s`;
+        if (timeLeft <= 0) {
+          clearInterval(countdown);
+          finishTest(); // auto-submit
+        }
+      }, 1000);
+    }
+
+    async function finishTest() {
+      clearInterval(countdown);
+      const text = typingBox.value;
+      const res = await fetch("/finish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text })
+      });
+      const data = await res.json();
+      if (data.error) {
+        resultDiv.innerText = "Error: " + data.error;
+      } else {
+        resultDiv.innerHTML = `
+          ✅ Words typed: ${data.words}<br>
+          ⏱ Time taken: ${data.time} seconds<br>
+          🚀 Speed: ${data.wpm} WPM<br>
+          🎯 Accuracy: ${data.accuracy} %
+        `;
+      }
+      typingBox.disabled = true;
+      finishBtn.disabled = true;
+      nextBtn.style.display = "inline-block";
+    }
+
+    changeBtn.onclick = async () => {
+      const res = await fetch("/change");
+      const data = await res.json();
+      paragraphBox.innerText = data.paragraph;
+      typingBox.value = "";
+      resultDiv.innerText = "";
+      typingBox.disabled = true;
+      finishBtn.disabled = true;
+      nextBtn.style.display = "none";
+      clearInterval(countdown);
+      timerDiv.innerText = "Time: 0s";
+    };
+
+    startBtn.onclick = async () => {
+      const res = await fetch("/start");
+      const data = await res.json();
+      resultDiv.innerText = data.message;
+      typingBox.disabled = false;
+      typingBox.value = "";
+      finishBtn.disabled = false;
+      nextBtn.style.display = "none";
+      typingBox.focus();
+      startTimer();
+    };
+
+    finishBtn.onclick = finishTest;
+
+    nextBtn.onclick = async () => {
+      const res = await fetch("/change");
+      const data = await res.json();
+      paragraphBox.innerText = data.paragraph;
+      typingBox.value = "";
+      resultDiv.innerText = "";
+      typingBox.disabled = true;
+      finishBtn.disabled = true;
+      nextBtn.style.display = "none";
+      clearInterval(countdown);
+      timerDiv.innerText = "Time: 0s";
+    };
+
+    // Load first paragraph when page starts
+    loadParagraph();
+  </script>
+</body>
+</html>
